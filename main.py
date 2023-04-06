@@ -1,5 +1,6 @@
 import sys
 from rhl.lexer import Lexer
+from rhl.exceptions import SyntaxError
 
 
 def main():
@@ -13,7 +14,11 @@ def main():
         source = f.read()
 
     lexer = Lexer(source)
-    lexer.lex()
+    try:
+        lexer.lex()
+    except SyntaxError as e:
+        print(e)
+        return -2
 
     print(lexer.tokens)
 

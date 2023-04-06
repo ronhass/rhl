@@ -1,6 +1,7 @@
 from typing import Callable, TypeVar
 
 from . import tokens
+from .exceptions import SyntaxError
 
 TokenType = TypeVar("TokenType", bound=tokens.Token)
 
@@ -41,6 +42,9 @@ class Lexer:
         if not self._peek():
             return
 
+        if self._match("#"):
+            return
+
         if token := self._next_number_token():
             return token
 
@@ -59,7 +63,7 @@ class Lexer:
         if token := self._next_identifier_token():
             return token
 
-        raise Exception()
+        self._raise_syntax_error("Invalid character")
 
     def _next_two_chars_token(self) -> tokens.TwoCharsToken | None:
         for two_chars_token in tokens.TwoCharsToken.__subclasses__():
@@ -86,7 +90,7 @@ class Lexer:
         value = self._consume_while(lambda c: c != '"')
 
         if not self._match('"'):
-            raise Exception("unterminated string")
+            self._raise_syntax_error("Expected '\"' to terminate string")
         return self._create_token(tokens.StringToken, value=value)
 
     def _next_number_token(self) -> tokens.IntegerToken | tokens.RationalToken | None:
@@ -141,3 +145,6 @@ class Lexer:
         if self._slice_line(size=len(c)) == c:
             return self._consume(len(c))
         return ""
+
+    def _raise_syntax_error(self, message: str) -> None:
+        raise SyntaxError(message=message, lineno=self._cur_lineno + 1, column=self._cur_col)
