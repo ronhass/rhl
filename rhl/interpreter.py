@@ -63,6 +63,30 @@ class Interpreter:
         return objects.NoneObject()
 
     @evaluate.register
+    def _(self, expr: ast.VariableExpression) -> objects.Object:
+        try:
+            return self.environment[expr.identifier.name]
+        except KeyError:
+            raise exceptions.RHLRuntimeError(f"no variable named {expr.identifier.name}", expr.identifier.line + 1, expr.identifier.column)
+
+    @evaluate.register
+    def _(self, expr: ast.VariableAssignment) -> objects.Object:
+        if expr.name.name not in self.environment:
+            raise exceptions.RHLRuntimeError(f"no variable named {expr.name.name} (use ':=' for decleration)", expr.name.line + 1, expr.name.column)
+
+        original_value = self.environment[expr.name.name]
+        value = self.evaluate(expr.expr)
+
+        if isinstance(original_value, objects.RationalObject) and isinstance(value, objects.IntObject):
+            value = value.to_rational()
+
+        if type(value) != type(original_value):
+            raise exceptions.RHLRuntimeError(f"cannot assign {value.type_name()} value to a {original_value.type_name()} variable", expr.name.line + 1, expr.name.column)
+
+        self.environment[expr.name.name] = value
+        return value
+
+    @evaluate.register
     def _(self, expr: ast.GroupExpression) -> objects.Object:
         return self.evaluate(expr.expr)
 

@@ -82,7 +82,19 @@ class Parser:
         return ast.ExpressionStatement(expr=expr)
 
     def expression(self) -> ast.Expression:
+        if isinstance(self._peek(), tokens.IdentifierToken) and isinstance(self._peek_next(), tokens.EqualToken):
+            return self.variable_assignment()
         return self.equality()
+
+    def variable_assignment(self) -> ast.Expression:
+        if not (identifier := self._match(tokens.IdentifierToken)):
+            raise Exception("Already validated this?!")
+
+        if not self._match(tokens.EqualToken):
+            raise Exception("Already validated this?!")
+
+        value = self.expression()
+        return ast.VariableAssignment(name=identifier, expr=value)
 
     def equality(self) -> ast.Expression:
         return self._binary_expression((tokens.EqualEqualToken, tokens.BangEqualToken), self.comparison)
@@ -125,6 +137,9 @@ class Parser:
 
         if token := self._match(tokens.NoneToken):
             return ast.NoneLiteralExpression()
+
+        if token := self._match(tokens.IdentifierToken):
+            return ast.VariableExpression(identifier=token)
 
         if self._match(tokens.LParenToken):
             expr = self.expression()

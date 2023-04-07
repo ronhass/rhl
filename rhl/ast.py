@@ -67,6 +67,11 @@ class NoneLiteralExpression(LiteralExpression):
 
 
 @dataclass
+class VariableExpression(Expression):
+    identifier: tokens.IdentifierToken
+
+
+@dataclass
 class GroupExpression(Expression):
     expr: Expression
 
@@ -82,3 +87,9 @@ class BinaryExpression(Expression):
     left: Expression
     operator: tokens.Token
     right: Expression
+
+
+@dataclass
+class VariableAssignment(Expression):
+    name: tokens.IdentifierToken
+    expr: Expression
