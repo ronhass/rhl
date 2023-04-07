@@ -3,12 +3,40 @@ from . import ast, objects, tokens, exceptions
 
 
 class Interpreter:
-    def __init__(self, expressions: list[ast.Expression]):
-        self.expressions = expressions
+    def __init__(self, root: ast.Program):
+        self.root = root
+        self.environment: dict[str, objects.Object] = {}
 
     def interpret(self):
-        for expr in self.expressions:
-            print(f"Evaluating {expr}: {self.evaluate(expr)}")
+        for stmt in self.root.statements:
+            self.execute(stmt)
+
+    @singledispatchmethod
+    def execute(self, stmt: ast.Statement) -> None:
+        raise NotImplementedError()
+
+    @execute.register
+    def _(self, stmt: ast.Decleration) -> None:
+        value = self.evaluate(stmt.expr)
+        if stmt.type is None:
+            self.environment[stmt.name.name] = value
+            return
+
+        if stmt.type.name == objects.RationalObject.type_name() and isinstance(value, objects.IntObject):
+            value = value.to_rational()
+
+        for object_type in objects.Object.__subclasses__():
+            if stmt.type.name == object_type.type_name():
+                if not isinstance(value, object_type):
+                    raise exceptions.RHLRuntimeError(f"could not assign {value.type_name()} value to a {object_type.type_name()} variable", stmt.type.line + 1, stmt.type.column)
+                self.environment[stmt.name.name] = value
+                return
+
+        raise exceptions.RHLRuntimeError(f"invalid type {stmt.type.name}", stmt.type.line + 1, stmt.type.column)
+
+    @execute.register
+    def _(self, stmt: ast.ExpressionStatement) -> None:
+        self.evaluate(stmt.expr)
 
     @singledispatchmethod
     def evaluate(self, expr: ast.Expression) -> objects.Object:

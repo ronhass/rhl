@@ -79,7 +79,7 @@ class Lexer:
         for keyword_token in tokens.KeywordToken.__subclasses__():
             word = self._slice_line(size=len(keyword_token._KEY))
             if word == keyword_token._KEY:
-                if not (after := self._peek_next(offset=len(word))) or after.isspace():
+                if not (after := self._peek_next(offset=len(word))) or after.isspace() or after == ";":
                     self._consume(len(word))
                     return self._create_token(keyword_token)
 

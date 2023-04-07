@@ -28,7 +28,7 @@ class RationalObject(Object):
 
     @staticmethod
     def type_name():
-        return "rational"
+        return "ratio"
 
 
 @dataclass

@@ -221,25 +221,5 @@ class ThisToken(KeywordToken):
 
 
 @dataclass
-class IntTypeToken(KeywordToken):
-    _KEY: str = "int"
-
-
-@dataclass
-class FloatTypeToken(KeywordToken):
-    _KEY: str = "float"
-
-
-@dataclass
-class BoolTypeToken(KeywordToken):
-    _KEY: str = "bool"
-
-
-@dataclass
-class StringTypeToken(KeywordToken):
-    _KEY: str = "str"
-
-
-@dataclass
 class EOFToken(Token):
     pass

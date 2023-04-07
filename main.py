@@ -29,12 +29,14 @@ def main():
         print(e)
         return -3
 
-    interpreter = Interpreter(parser.expressions)
+    interpreter = Interpreter(parser.root)
     try:
         interpreter.interpret()
     except RHLRuntimeError as e:
         print(e)
         return -4
+
+    print(interpreter.environment)
 
 
 if __name__ == "__main__":

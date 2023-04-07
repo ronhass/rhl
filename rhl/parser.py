@@ -1,20 +1,26 @@
 from typing import Callable, Iterable, cast
-from . import tokens, ast
+from . import tokens, ast, exceptions
 
 
 class Parser:
     def __init__(self, _tokens: list[tokens.Token]):
         self.tokens = _tokens
-        self.expressions: list[ast.Expression] = []
+        self.root: ast.Program
 
         self._cur_index = 0
 
     def parse(self):
-        while not self._match(tokens.EOFToken):
-            self.expressions.append(self.expression())
+        self.root = self.program()
+
+    def _peek_at(self, offset: int) -> tokens.Token | None:
+        index = self._cur_index + offset
+        return self.tokens[index] if index < len(self.tokens) else None
 
     def _peek(self) -> tokens.Token | None:
-        return self.tokens[self._cur_index] if self._cur_index < len(self.tokens) else None
+        return self._peek_at(0)
+
+    def _peek_next(self) -> tokens.Token | None:
+        return self._peek_at(1)
 
     def _consume(self) -> tokens.Token | None:
         if current := self._peek():
@@ -27,6 +33,53 @@ class Parser:
         for token_type in token_types:
             if isinstance(self._peek(), token_type):
                 return self._consume()
+
+    def _raise_syntax_error(self, message: str) -> None:
+        line = 0
+        column = 0
+        if token := self._peek():
+            line = token.line + 1
+            column = token.column
+
+        raise exceptions.RHLSyntaxError(message=message, lineno=line, column=column)
+
+    def _raise_expected_semicolon(self) -> None:
+        self._raise_syntax_error("expected ';' at the end of a statement")
+
+    def program(self) -> ast.Program:
+        statements = []
+        while not self._match(tokens.EOFToken):
+            statements.append(self.decleration())
+        return ast.Program(statements=statements)
+
+    def decleration(self) -> ast.Statement:
+        if isinstance(self._peek(), tokens.IdentifierToken) and isinstance(self._peek_next(), tokens.ColonToken):
+            return self.var_decleration()
+        return self.statement()
+
+    def var_decleration(self) -> ast.Statement:
+        if not (identifier := self._match(tokens.IdentifierToken)):
+            raise Exception("Already validated this?!")
+
+        if not self._match(tokens.ColonToken):
+            raise Exception("Already validated this?!")
+
+        type_identifier = self._match(tokens.IdentifierToken)
+
+        if not self._match(tokens.EqualToken):
+            self._raise_syntax_error("expected '=' in variable decleration")
+
+        value = self.expression()
+        if not self._match(tokens.SemiColonToken):
+            self._raise_expected_semicolon()
+
+        return ast.Decleration(name=identifier, type=type_identifier, expr=value)
+
+    def statement(self) -> ast.Statement:
+        expr = self.expression()
+        if not self._match(tokens.SemiColonToken):
+            self._raise_expected_semicolon()
+        return ast.ExpressionStatement(expr=expr)
 
     def expression(self) -> ast.Expression:
         return self.equality()
@@ -76,7 +129,7 @@ class Parser:
         if self._match(tokens.LParenToken):
             expr = self.expression()
             if not self._match(tokens.RParenToken):
-                raise Exception()
+                self._raise_syntax_error("expected a closing paranthesis")
             return ast.GroupExpression(expr=expr)
 
-        raise Exception()
+        self._raise_syntax_error("invalid character")
