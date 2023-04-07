@@ -1,6 +1,8 @@
 import sys
 from rhl.lexer import Lexer
-from rhl.exceptions import SyntaxError
+from rhl.parser import Parser
+from rhl.interpreter import Interpreter
+from rhl.exceptions import RHLSyntaxError, RHLRuntimeError
 
 
 def main():
@@ -16,11 +18,23 @@ def main():
     lexer = Lexer(source)
     try:
         lexer.lex()
-    except SyntaxError as e:
+    except RHLSyntaxError as e:
         print(e)
         return -2
 
-    print(lexer.tokens)
+    parser = Parser(lexer.tokens)
+    try:
+        parser.parse()
+    except RHLSyntaxError as e:
+        print(e)
+        return -3
+
+    interpreter = Interpreter(parser.expressions)
+    try:
+        interpreter.interpret()
+    except RHLRuntimeError as e:
+        print(e)
+        return -4
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from typing import Callable, TypeVar
 
 from . import tokens
-from .exceptions import SyntaxError
+from .exceptions import RHLSyntaxError
 
 TokenType = TypeVar("TokenType", bound=tokens.Token)
 
@@ -147,4 +147,4 @@ class Lexer:
         return ""
 
     def _raise_syntax_error(self, message: str) -> None:
-        raise SyntaxError(message=message, lineno=self._cur_lineno + 1, column=self._cur_col)
+        raise RHLSyntaxError(message=message, lineno=self._cur_lineno + 1, column=self._cur_col)
