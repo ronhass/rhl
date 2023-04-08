@@ -114,6 +114,21 @@ class Interpreter:
             
     @evaluate.register
     def _(self, expr: ast.BinaryExpression) -> objects.Object:
+        match expr.operator:
+            case tokens.AndToken():
+                left = self.evaluate(expr.left)
+                if not self._is_truthy(left):
+                    return objects.BooleanObject(value=False)
+                right = self.evaluate(expr.right)
+                return objects.BooleanObject(value=self._is_truthy(right))
+
+            case tokens.OrToken():
+                left = self.evaluate(expr.left)
+                if self._is_truthy(left):
+                    return objects.BooleanObject(value=True)
+                right = self.evaluate(expr.right)
+                return objects.BooleanObject(value=self._is_truthy(right))
+
         left = self.evaluate(expr.left)
         right = self.evaluate(expr.right)
 
@@ -179,6 +194,6 @@ class Interpreter:
                     raise exceptions.RHLDivisionByZeroError(expr.operator.line + 1, expr.operator.column)
 
             case _:
-                raise Exception("Invalid binary operator?")
+                raise Exception(f"Invalid binary operator {expr.operator}")
 
         raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {left.type_name()} and {right.type_name()}", expr.operator.line + 1, expr.operator.column)

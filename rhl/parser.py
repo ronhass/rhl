@@ -137,7 +137,7 @@ class Parser:
     def expression(self) -> ast.Expression:
         if self._match(tokens.IdentifierToken) and self._match_next(tokens.EqualToken):
             return self.variable_assignment()
-        return self.equality()
+        return self.logic()
 
     def variable_assignment(self) -> ast.Expression:
         if not (identifier := self._consume(tokens.IdentifierToken)):
@@ -148,6 +148,9 @@ class Parser:
 
         value = self.expression()
         return ast.VariableAssignment(name=identifier, expr=value)
+
+    def logic(self) -> ast.Expression:
+        return self._binary_expression((tokens.OrToken, tokens.AndToken), self.equality)
 
     def equality(self) -> ast.Expression:
         return self._binary_expression((tokens.EqualEqualToken, tokens.BangEqualToken), self.comparison)
