@@ -22,17 +22,21 @@ class Parser:
     def _peek_next(self) -> tokens.Token | None:
         return self._peek_at(1)
 
-    def _consume(self) -> tokens.Token | None:
-        if current := self._peek():
-            self._cur_index += 1
-        return current
+    def _consume(self, token_types: Iterable[type[tokens.Token]] | type[tokens.Token] | None = None) -> tokens.Token | None:
+        current = self._peek()
+        if current is None:
+            return None
 
-    def _match(self, token_types: Iterable[type[tokens.Token]] | type[tokens.Token]) -> tokens.Token | None:
+        if token_types is None:
+            self._cur_index += 1
+            return current
+
         if isinstance(token_types, type):
             token_types = [token_types]
         for token_type in token_types:
-            if isinstance(self._peek(), token_type):
-                return self._consume()
+            if isinstance(current, token_type):
+                self._cur_index += 1
+                return current
 
     def _raise_syntax_error(self, message: str) -> None:
         line = 0
@@ -48,7 +52,7 @@ class Parser:
 
     def program(self) -> ast.Program:
         statements = []
-        while not self._match(tokens.EOFToken):
+        while not self._consume(tokens.EOFToken):
             statements.append(self.decleration())
         return ast.Program(statements=statements)
 
@@ -58,19 +62,19 @@ class Parser:
         return self.statement()
 
     def var_decleration(self) -> ast.Statement:
-        if not (identifier := self._match(tokens.IdentifierToken)):
+        if not (identifier := self._consume(tokens.IdentifierToken)):
             raise Exception("Already validated this?!")
 
-        if not self._match(tokens.ColonToken):
+        if not self._consume(tokens.ColonToken):
             raise Exception("Already validated this?!")
 
-        type_identifier = self._match(tokens.IdentifierToken)
+        type_identifier = self._consume(tokens.IdentifierToken)
 
-        if not self._match(tokens.EqualToken):
+        if not self._consume(tokens.EqualToken):
             self._raise_syntax_error("expected '=' in variable decleration")
 
         value = self.expression()
-        if not self._match(tokens.SemiColonToken):
+        if not self._consume(tokens.SemiColonToken):
             self._raise_expected_semicolon()
 
         return ast.Decleration(name=identifier, type=type_identifier, expr=value)
@@ -86,38 +90,38 @@ class Parser:
             return self.while_statement()
 
         expr = self.expression()
-        if not self._match(tokens.SemiColonToken):
+        if not self._consume(tokens.SemiColonToken):
             self._raise_expected_semicolon()
         return ast.ExpressionStatement(expr=expr)
 
     def block(self) -> ast.Statement:
-        if not self._match(tokens.LBraceToken):
+        if not self._consume(tokens.LBraceToken):
             raise Exception("Already validated this?!")
 
         statements = []
         while not isinstance(self._peek(), (tokens.RBraceToken, tokens.EOFToken)):
             statements.append(self.decleration())
 
-        if not self._match(tokens.RBraceToken):
+        if not self._consume(tokens.RBraceToken):
             raise Exception()
 
         return ast.Block(statements=statements)
 
     def if_statement(self) -> ast.Statement:
-        if not self._match(tokens.IfToken):
+        if not self._consume(tokens.IfToken):
             raise Exception("Already validated this?!")
 
         condition = self.expression()
         body = self.statement()
         
         else_body = None
-        if self._match(tokens.ElseToken):
+        if self._consume(tokens.ElseToken):
             else_body = self.statement()
 
         return ast.IfStatement(condition=condition, body=body, else_body=else_body)
 
     def while_statement(self) -> ast.Statement:
-        if not self._match(tokens.WhileToken):
+        if not self._consume(tokens.WhileToken):
             raise Exception("Already validated this?!")
 
         condition = self.expression()
@@ -130,10 +134,10 @@ class Parser:
         return self.equality()
 
     def variable_assignment(self) -> ast.Expression:
-        if not (identifier := self._match(tokens.IdentifierToken)):
+        if not (identifier := self._consume(tokens.IdentifierToken)):
             raise Exception("Already validated this?!")
 
-        if not self._match(tokens.EqualToken):
+        if not self._consume(tokens.EqualToken):
             raise Exception("Already validated this?!")
 
         value = self.expression()
@@ -153,40 +157,40 @@ class Parser:
 
     def _binary_expression(self, ops_types: Iterable[type[tokens.Token]], next_rule: Callable) -> ast.Expression:
         expr = next_rule()
-        while op := self._match(ops_types):
+        while op := self._consume(ops_types):
             expr = ast.BinaryExpression(left=expr, operator=op, right=next_rule())
         return expr
 
     def unary(self) -> ast.Expression:
-        if op := self._match((tokens.BangToken, tokens.MinusToken)):
+        if op := self._consume((tokens.BangToken, tokens.MinusToken)):
             return ast.UnaryExpression(operator=op, right=self.unary())
         return self.primary()
 
     def primary(self) -> ast.Expression:
-        if token := self._match(tokens.IntegerToken):
+        if token := self._consume(tokens.IntegerToken):
             token = cast(tokens.IntegerToken, token)
             return ast.IntLiteralExpression(value=token.value)
 
-        if token := self._match(tokens.RationalToken):
+        if token := self._consume(tokens.RationalToken):
             token = cast(tokens.RationalToken, token)
             return ast.RationalLiteralExpression(value=token.value)
 
-        if token := self._match(tokens.StringToken):
+        if token := self._consume(tokens.StringToken):
             token = cast(tokens.StringToken, token)
             return ast.StringLiteralExpression(value=token.value)
 
-        if token := self._match((tokens.TrueToken, tokens.FalseToken)):
+        if token := self._consume((tokens.TrueToken, tokens.FalseToken)):
             return ast.BooleanLiteralExpression(value=isinstance(token, tokens.TrueToken))
 
-        if token := self._match(tokens.NoneToken):
+        if token := self._consume(tokens.NoneToken):
             return ast.NoneLiteralExpression()
 
-        if token := self._match(tokens.IdentifierToken):
+        if token := self._consume(tokens.IdentifierToken):
             return ast.VariableExpression(identifier=token)
 
-        if self._match(tokens.LParenToken):
+        if self._consume(tokens.LParenToken):
             expr = self.expression()
-            if not self._match(tokens.RParenToken):
+            if not self._consume(tokens.RParenToken):
                 self._raise_syntax_error("expected a closing paranthesis")
             return ast.GroupExpression(expr=expr)
 
