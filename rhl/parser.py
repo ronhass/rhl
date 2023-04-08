@@ -22,6 +22,12 @@ class Parser:
     def _peek_next(self) -> tokens.Token | None:
         return self._peek_at(1)
 
+    def _match(self, class_or_tuple) -> bool:
+        return isinstance(self._peek(), class_or_tuple)
+
+    def _match_next(self, class_or_tuple) -> bool:
+        return isinstance(self._peek_next(), class_or_tuple)
+
     def _consume(self, token_types: Iterable[type[tokens.Token]] | type[tokens.Token] | None = None) -> tokens.Token | None:
         current = self._peek()
         if current is None:
@@ -57,7 +63,7 @@ class Parser:
         return ast.Program(statements=statements)
 
     def decleration(self) -> ast.Statement:
-        if isinstance(self._peek(), tokens.IdentifierToken) and isinstance(self._peek_next(), tokens.ColonToken):
+        if self._match(tokens.IdentifierToken) and self._match_next(tokens.ColonToken):
             return self.var_decleration()
         return self.statement()
 
@@ -80,13 +86,13 @@ class Parser:
         return ast.Decleration(name=identifier, type=type_identifier, expr=value)
 
     def statement(self) -> ast.Statement:
-        if isinstance(self._peek(), tokens.LBraceToken):
+        if self._match(tokens.LBraceToken):
             return self.block()
 
-        if isinstance(self._peek(), tokens.IfToken):
+        if self._match(tokens.IfToken):
             return self.if_statement()
 
-        if isinstance(self._peek(), tokens.WhileToken):
+        if self._match(tokens.WhileToken):
             return self.while_statement()
 
         expr = self.expression()
@@ -99,7 +105,7 @@ class Parser:
             raise Exception("Already validated this?!")
 
         statements = []
-        while not isinstance(self._peek(), (tokens.RBraceToken, tokens.EOFToken)):
+        while not self._match((tokens.RBraceToken, tokens.EOFToken)):
             statements.append(self.decleration())
 
         if not self._consume(tokens.RBraceToken):
@@ -129,7 +135,7 @@ class Parser:
         return ast.WhileStatement(condition=condition, body=body)
 
     def expression(self) -> ast.Expression:
-        if isinstance(self._peek(), tokens.IdentifierToken) and isinstance(self._peek_next(), tokens.EqualToken):
+        if self._match(tokens.IdentifierToken) and self._match_next(tokens.EqualToken):
             return self.variable_assignment()
         return self.equality()
 
