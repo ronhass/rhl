@@ -76,10 +76,53 @@ class Parser:
         return ast.Decleration(name=identifier, type=type_identifier, expr=value)
 
     def statement(self) -> ast.Statement:
+        if isinstance(self._peek(), tokens.LBraceToken):
+            return self.block()
+
+        if isinstance(self._peek(), tokens.IfToken):
+            return self.if_statement()
+
+        if isinstance(self._peek(), tokens.WhileToken):
+            return self.while_statement()
+
         expr = self.expression()
         if not self._match(tokens.SemiColonToken):
             self._raise_expected_semicolon()
         return ast.ExpressionStatement(expr=expr)
+
+    def block(self) -> ast.Statement:
+        if not self._match(tokens.LBraceToken):
+            raise Exception("Already validated this?!")
+
+        statements = []
+        while not isinstance(self._peek(), (tokens.RBraceToken, tokens.EOFToken)):
+            statements.append(self.decleration())
+
+        if not self._match(tokens.RBraceToken):
+            raise Exception()
+
+        return ast.Block(statements=statements)
+
+    def if_statement(self) -> ast.Statement:
+        if not self._match(tokens.IfToken):
+            raise Exception("Already validated this?!")
+
+        condition = self.expression()
+        body = self.statement()
+        
+        else_body = None
+        if self._match(tokens.ElseToken):
+            else_body = self.statement()
+
+        return ast.IfStatement(condition=condition, body=body, else_body=else_body)
+
+    def while_statement(self) -> ast.Statement:
+        if not self._match(tokens.WhileToken):
+            raise Exception("Already validated this?!")
+
+        condition = self.expression()
+        body = self.statement()
+        return ast.WhileStatement(condition=condition, body=body)
 
     def expression(self) -> ast.Expression:
         if isinstance(self._peek(), tokens.IdentifierToken) and isinstance(self._peek_next(), tokens.EqualToken):

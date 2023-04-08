@@ -32,6 +32,24 @@ class Decleration(Statement):
 
 
 @dataclass
+class Block(Statement):
+    statements: list[Statement]
+
+
+@dataclass
+class IfStatement(Statement):
+    condition: Expression
+    body: Statement
+    else_body: Statement | None
+
+
+@dataclass
+class WhileStatement(Statement):
+    condition: Expression
+    body: Statement
+
+
+@dataclass
 class ExpressionStatement(Statement):
     expr: Expression
 

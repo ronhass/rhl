@@ -1,15 +1,26 @@
 from functools import singledispatchmethod
 from . import ast, objects, tokens, exceptions
+from .environment import Environment
 
 
 class Interpreter:
     def __init__(self, root: ast.Program):
         self.root = root
-        self.environment: dict[str, objects.Object] = {}
+        self.environment = Environment()
 
     def interpret(self):
         for stmt in self.root.statements:
             self.execute(stmt)
+
+    def _is_truthy(self, object: objects.Object):
+        if isinstance(object, objects.NoneObject):
+            return False
+
+        if isinstance(object, objects.BooleanObject):
+            return object.value
+
+        # TODO: "" should be false or true?
+        return True
 
     @singledispatchmethod
     def execute(self, stmt: ast.Statement) -> None:
@@ -18,21 +29,27 @@ class Interpreter:
     @execute.register
     def _(self, stmt: ast.Decleration) -> None:
         value = self.evaluate(stmt.expr)
-        if stmt.type is None:
-            self.environment[stmt.name.name] = value
-            return
+        self.environment.declare(stmt.name.name, value, stmt.type)
 
-        if stmt.type.name == objects.RationalObject.type_name() and isinstance(value, objects.IntObject):
-            value = value.to_rational()
+    @execute.register
+    def _(self, stmt: ast.Block) -> None:
+        self.environment.push()
+        for _stmt in stmt.statements:
+            self.execute(_stmt)
+        self.environment.pop()
 
-        for object_type in objects.Object.__subclasses__():
-            if stmt.type.name == object_type.type_name():
-                if not isinstance(value, object_type):
-                    raise exceptions.RHLRuntimeError(f"could not assign {value.type_name()} value to a {object_type.type_name()} variable", stmt.type.line + 1, stmt.type.column)
-                self.environment[stmt.name.name] = value
-                return
+    @execute.register
+    def _(self, stmt: ast.IfStatement) -> None:
+        condition = self.evaluate(stmt.condition)
+        if self._is_truthy(condition):
+            self.execute(stmt.body)
+        elif stmt.else_body is not None:
+            self.execute(stmt.else_body)
 
-        raise exceptions.RHLRuntimeError(f"invalid type {stmt.type.name}", stmt.type.line + 1, stmt.type.column)
+    @execute.register
+    def _(self, stmt: ast.WhileStatement) -> None:
+        while self._is_truthy(self.evaluate(stmt.condition)):
+            self.execute(stmt.body)
 
     @execute.register
     def _(self, stmt: ast.ExpressionStatement) -> None:
@@ -64,27 +81,12 @@ class Interpreter:
 
     @evaluate.register
     def _(self, expr: ast.VariableExpression) -> objects.Object:
-        try:
-            return self.environment[expr.identifier.name]
-        except KeyError:
-            raise exceptions.RHLRuntimeError(f"no variable named {expr.identifier.name}", expr.identifier.line + 1, expr.identifier.column)
+        return self.environment.get(expr.identifier)
 
     @evaluate.register
     def _(self, expr: ast.VariableAssignment) -> objects.Object:
-        if expr.name.name not in self.environment:
-            raise exceptions.RHLRuntimeError(f"no variable named {expr.name.name} (use ':=' for decleration)", expr.name.line + 1, expr.name.column)
-
-        original_value = self.environment[expr.name.name]
         value = self.evaluate(expr.expr)
-
-        if isinstance(original_value, objects.RationalObject) and isinstance(value, objects.IntObject):
-            value = value.to_rational()
-
-        if type(value) != type(original_value):
-            raise exceptions.RHLRuntimeError(f"cannot assign {value.type_name()} value to a {original_value.type_name()} variable", expr.name.line + 1, expr.name.column)
-
-        self.environment[expr.name.name] = value
-        return value
+        return self.environment.set(expr.name, value)
 
     @evaluate.register
     def _(self, expr: ast.GroupExpression) -> objects.Object:
