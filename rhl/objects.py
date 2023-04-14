@@ -5,12 +5,10 @@ from dataclasses import dataclass
 from . import types
 
 
+@dataclass
 class Object(ABC):
-    @property
-    @abstractmethod
-    def type(self) -> types.Type:
-        pass
-
+    type: ClassVar[types.Type] = types.any_type
+        
     @abstractmethod
     def to_string(self) -> str:
         pass
