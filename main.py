@@ -5,16 +5,13 @@ from rhl.parser import Parser
 from rhl.interpreter import Interpreter
 from rhl.exceptions import RHLSyntaxError, RHLRuntimeError
 from rhl.resolver import Resolver
-from rhl.builtins import init_builtins
-
+import rhl.builtins
 
 def setup_logging():
     logging.basicConfig(format='[%(levelname)s] %(name)s - %(message)s', level=logging.WARNING)
 
 
 def main():
-    setup_logging()
-
     try:
         path = sys.argv[1]
     except IndexError:
@@ -23,8 +20,8 @@ def main():
 
     with open(path) as f:
         source = f.read()
-
-    init_builtins()
+        
+    setup_logging()
 
     lexer = Lexer(source)
     try:
