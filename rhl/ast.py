@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from . import tokens
+from . import tokens, types
 
 
 @dataclass
@@ -20,15 +20,23 @@ class Expression(ASTNode):
 
 
 @dataclass
-class Program(ASTNode):
+class Program(Statement):
     statements: list[Statement]
 
 
 @dataclass
-class Decleration(Statement):
+class VarDeclaration(Statement):
     name: tokens.IdentifierToken
-    type: tokens.IdentifierToken | None
+    type: types.Type | None
     expr: Expression
+
+
+@dataclass
+class FunDeclaration(Statement):
+    name: tokens.IdentifierToken
+    parameters: list[tuple[tokens.IdentifierToken, types.Type]]
+    return_type: types.Type
+    body: "Block"
 
 
 @dataclass
@@ -47,6 +55,11 @@ class IfStatement(Statement):
 class WhileStatement(Statement):
     condition: Expression
     body: Statement
+
+
+@dataclass
+class ReturnStatement(Statement):
+    expr: Expression
 
 
 @dataclass
@@ -87,6 +100,7 @@ class NoneLiteralExpression(LiteralExpression):
 @dataclass
 class VariableExpression(Expression):
     identifier: tokens.IdentifierToken
+    scope_distance: int = -1
 
 
 @dataclass
@@ -111,3 +125,11 @@ class BinaryExpression(Expression):
 class VariableAssignment(Expression):
     name: tokens.IdentifierToken
     expr: Expression
+    scope_distance: int = -1
+
+
+@dataclass
+class FunctionCall(Expression):
+    expr: Expression
+    arguments: list[Expression]
+    scope_distance: int = -1

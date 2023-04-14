@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import TypeVar
 
 
 @dataclass
@@ -33,6 +34,16 @@ class LBraceToken(OneCharToken):
 @dataclass
 class RBraceToken(OneCharToken):
     _CHAR: str = "}"
+
+
+@dataclass
+class LSquareParenToken(OneCharToken):
+    _CHAR: str = "["
+
+
+@dataclass
+class RSquareParentToken(OneCharToken):
+    _CHAR: str = "]"
 
 
 @dataclass
@@ -118,11 +129,6 @@ class GreaterEqualToken(TwoCharsToken):
 @dataclass
 class LessEqualToken(TwoCharsToken):
     _CHARS: str = "<="
-
-
-@dataclass
-class ReturnTypeToken(TwoCharsToken):
-    _CHARS: str = "->"
 
 
 @dataclass
@@ -223,3 +229,6 @@ class ThisToken(KeywordToken):
 @dataclass
 class EOFToken(Token):
     pass
+
+
+TokenType = TypeVar("TokenType", bound=Token)

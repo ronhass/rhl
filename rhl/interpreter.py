@@ -1,16 +1,20 @@
 from functools import singledispatchmethod
+from typing import cast
 from . import ast, objects, tokens, exceptions
-from .environment import Environment
+from .environment import Environment, GLOBAL_ENV
 
 
 class Interpreter:
-    def __init__(self, root: ast.Program):
-        self.root = root
-        self.environment = Environment()
+    class Return(Exception):
+        def __init__(self, value: objects.Object):
+            self.value = value
 
-    def interpret(self):
-        for stmt in self.root.statements:
-            self.execute(stmt)
+    def __init__(self, env: Environment | None = None):
+        if env:
+            self.environment = env
+        else:
+            self.environment = Environment(GLOBAL_ENV)
+            self.environment.push()
 
     def _is_truthy(self, object: objects.Object):
         if isinstance(object, objects.NoneObject):
@@ -27,16 +31,30 @@ class Interpreter:
         raise NotImplementedError()
 
     @execute.register
-    def _(self, stmt: ast.Decleration) -> None:
+    def _(self, stmt: ast.Program) -> None:
+        for _stmt in stmt.statements:
+            self.execute(_stmt)
+
+    @execute.register
+    def _(self, stmt: ast.VarDeclaration) -> None:
         value = self.evaluate(stmt.expr)
-        self.environment.declare(stmt.name.name, value, stmt.type)
+        self.environment.declare(stmt.name.name, value)
+
+    @execute.register
+    def _(self, stmt: ast.FunDeclaration) -> None:
+        func = objects.FunctionObject(
+            name=stmt.name.name,
+            parameters=[(token.name, _type) for token, _type in stmt.parameters],
+            return_type=stmt.return_type,
+            closure=Environment(self.environment),
+            execute=lambda env: Interpreter(env).execute(stmt.body),
+        )
+        self.environment.declare(stmt.name.name, func)
 
     @execute.register
     def _(self, stmt: ast.Block) -> None:
-        self.environment.push()
         for _stmt in stmt.statements:
             self.execute(_stmt)
-        self.environment.pop()
 
     @execute.register
     def _(self, stmt: ast.IfStatement) -> None:
@@ -50,6 +68,11 @@ class Interpreter:
     def _(self, stmt: ast.WhileStatement) -> None:
         while self._is_truthy(self.evaluate(stmt.condition)):
             self.execute(stmt.body)
+
+    @execute.register
+    def _(self, stmt: ast.ReturnStatement) -> None:
+        value = self.evaluate(stmt.expr)
+        raise self.Return(value)
 
     @execute.register
     def _(self, stmt: ast.ExpressionStatement) -> None:
@@ -81,12 +104,31 @@ class Interpreter:
 
     @evaluate.register
     def _(self, expr: ast.VariableExpression) -> objects.Object:
-        return self.environment.get(expr.identifier)
+        return self.environment.get_at(expr.identifier.name, expr.scope_distance)
+
+    @evaluate.register
+    def _(self, expr: ast.FunctionCall) -> objects.Object:
+        func = self.evaluate(expr.expr)
+        func = cast(objects.FunctionObject, func)
+
+        env = Environment(func.closure)
+        env.push()
+        for param, arg in zip(func.parameters, expr.arguments):
+            param_name, _ = param
+            env.declare(param_name, self.evaluate(arg))
+
+        try:
+            func.execute(env)
+        except self.Return as ex:
+            return ex.value
+
+        return objects.NoneObject()
 
     @evaluate.register
     def _(self, expr: ast.VariableAssignment) -> objects.Object:
         value = self.evaluate(expr.expr)
-        return self.environment.set(expr.name, value)
+        self.environment.set_at(expr.name.name, expr.scope_distance, value)
+        return value
 
     @evaluate.register
     def _(self, expr: ast.GroupExpression) -> objects.Object:
@@ -110,24 +152,20 @@ class Interpreter:
             case _:
                 raise Exception("invalid unary operator?")
 
-        raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {right.type_name()}", expr.operator.line + 1, expr.operator.column)
+        raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {right.type}", expr.operator.line + 1, expr.operator.column)
             
     @evaluate.register
     def _(self, expr: ast.BinaryExpression) -> objects.Object:
         match expr.operator:
             case tokens.AndToken():
-                left = self.evaluate(expr.left)
-                if not self._is_truthy(left):
-                    return objects.BooleanObject(value=False)
-                right = self.evaluate(expr.right)
-                return objects.BooleanObject(value=self._is_truthy(right))
+                if not self._is_truthy(left := self.evaluate(expr.left)):
+                    return left
+                return self.evaluate(expr.right)
 
             case tokens.OrToken():
-                left = self.evaluate(expr.left)
-                if self._is_truthy(left):
-                    return objects.BooleanObject(value=True)
-                right = self.evaluate(expr.right)
-                return objects.BooleanObject(value=self._is_truthy(right))
+                if self._is_truthy(left := self.evaluate(expr.left)):
+                    return left
+                return self.evaluate(expr.right)
 
         left = self.evaluate(expr.left)
         right = self.evaluate(expr.right)
@@ -196,4 +234,4 @@ class Interpreter:
             case _:
                 raise Exception(f"Invalid binary operator {expr.operator}")
 
-        raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {left.type_name()} and {right.type_name()}", expr.operator.line + 1, expr.operator.column)
+        raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {left.type} and {right.type}", expr.operator.line + 1, expr.operator.column)

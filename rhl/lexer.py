@@ -1,9 +1,10 @@
-from typing import Callable, TypeVar
+import logging
+from typing import Callable, NoReturn
 
 from . import tokens
 from .exceptions import RHLSyntaxError
 
-TokenType = TypeVar("TokenType", bound=tokens.Token)
+logger = logging.getLogger(__name__)
 
 
 class Lexer:
@@ -16,6 +17,7 @@ class Lexer:
         self._cur_col: int = 0
 
     def lex(self):
+        logger.debug("Start lexing.")
         self.tokens = []
 
         for lineno, line in enumerate(self.source.splitlines()):
@@ -29,8 +31,9 @@ class Lexer:
         self._cur_lineno += 1
         self._cur_col = 0
         self.tokens.append(self._create_token(tokens.EOFToken))
+        logger.debug(f"End lexing with {len(self.tokens)} tokens.")
 
-    def _create_token(self, token_type: type[TokenType], **kwargs) -> TokenType:
+    def _create_token(self, token_type: type[tokens.TokenType], **kwargs) -> tokens.TokenType:
         return token_type(
             line=self._cur_lineno,
             column=self._cur_col,
@@ -79,7 +82,7 @@ class Lexer:
         for keyword_token in tokens.KeywordToken.__subclasses__():
             word = self._slice_line(size=len(keyword_token._KEY))
             if word == keyword_token._KEY:
-                if not (after := self._peek_next(offset=len(word))) or after.isspace() or after == ";":
+                if not (after := self._peek_next(offset=len(word))) or not (after.isalnum() or after == '_'):
                     self._consume(len(word))
                     return self._create_token(keyword_token)
 
@@ -146,5 +149,5 @@ class Lexer:
             return self._consume(len(c))
         return ""
 
-    def _raise_syntax_error(self, message: str) -> None:
+    def _raise_syntax_error(self, message: str) -> NoReturn:
         raise RHLSyntaxError(message=message, lineno=self._cur_lineno + 1, column=self._cur_col)
