@@ -155,6 +155,9 @@ class Parser:
             if identifier.name == "func":
                 return self._parse_function_type()
 
+            if identifier.name == "list":
+                return self._parse_list_type()
+
             if identifier.name not in types.basic_types_names:
                 self._raise_syntax_error(f"invalid type name {identifier.name}")
 
@@ -177,6 +180,17 @@ class Parser:
             self._raise_syntax_error("invalid function type")
 
         return types.FunctionType.get_or_create(params_types, return_type)
+
+    def _parse_list_type(self) -> types.ListType:
+        if not self._consume(tokens.LSquareParenToken):
+            self._raise_syntax_error("invalid list type")
+
+        element_type = self._parse_type()
+
+        if not self._consume(tokens.RSquareParentToken):
+            self._raise_syntax_error("invalid list type")
+
+        return types.ListType.get_or_create(element_type)
 
     def statement(self) -> ast.Statement:
         if self._match(tokens.LBraceToken):
@@ -284,9 +298,17 @@ class Parser:
     def call(self) -> ast.Expression:
         expr = self.primary()
 
-        while self._match(tokens.LParenToken):
-            arguments = self._consume_list(self.expression)
-            expr = ast.FunctionCall(expr=expr, arguments=arguments)
+        while True:
+            if self._match(tokens.LParenToken):
+                arguments = self._consume_list(self.expression)
+                expr = ast.FunctionCall(expr=expr, arguments=arguments)
+            elif self._consume(tokens.LSquareParenToken):
+                index = self.expression()
+                if not self._consume(tokens.RSquareParentToken):
+                    self._raise_syntax_error("Expected ']'")
+                expr = ast.GetItem(expr=expr, index=index)
+            else:
+                break
 
         return expr
 
@@ -317,5 +339,9 @@ class Parser:
             if not self._consume(tokens.RParenToken):
                 self._raise_syntax_error("expected a closing paranthesis")
             return ast.GroupExpression(expr=expr)
+
+        if self._match(tokens.LSquareParenToken):
+            items = self._consume_list(self.expression, open_token=tokens.LSquareParenToken)
+            return ast.ListExpression(items=items)
 
         self._raise_syntax_error("invalid character")

@@ -81,7 +81,7 @@ class FunctionType(Type):
             return False
 
         for arg_type, param_type in zip(arg_types, self.params_types):
-            if not param_type.is_ancestor_of(arg_type):
+            if not param_type.can_assign(arg_type):
                 return False
 
         return True
@@ -101,3 +101,28 @@ class FunctionType(Type):
                 return False
 
         return True
+
+
+@dataclass
+class ListType(Type):
+    element_type: Type
+
+    _cache: ClassVar[dict[str, "ListType"]] = {}
+
+    @classmethod
+    def get_or_create(cls, element_type: Type) -> "ListType":
+        name = f"list[{element_type}]"
+        if name not in cls._cache:
+            logger.debug(f"Creating new list type: '{name}'")
+            cls._cache[name] = cls(name, any_type, element_type)
+        return cls._cache[name]
+
+    def get_common_ancestor(self, other: Type) -> Type:
+        if not isinstance(other, ListType):
+            return super().get_common_ancestor(other)
+        return self.element_type.get_common_ancestor(other.element_type)
+
+    def can_assign(self, other: Type) -> bool:
+        if not isinstance(other, ListType):
+            return False
+        return self.element_type.can_assign(other.element_type)

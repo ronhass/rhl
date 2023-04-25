@@ -1,6 +1,6 @@
 from functools import singledispatchmethod
 from typing import cast
-from . import ast, objects, tokens, exceptions
+from . import ast, objects, tokens, exceptions, types
 from .environment import Environment, GLOBAL_ENV
 
 
@@ -235,3 +235,21 @@ class Interpreter:
                 raise Exception(f"Invalid binary operator {expr.operator}")
 
         raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {left.type} and {right.type}", expr.operator.line + 1, expr.operator.column)
+
+    @evaluate.register
+    def _(self, expr: ast.ListExpression) -> objects.Object:
+        items = [self.evaluate(item) for item in expr.items]
+        if len(items) == 0:
+            return objects.ListObject(element_type=types.any_type, value=[])
+        return objects.ListObject(element_type=items[0].type, value=items)
+
+
+    @evaluate.register
+    def _(self, expr: ast.GetItem) -> objects.Object:
+        _list = self.evaluate(expr.expr)
+        _list = cast(objects.ListObject, _list)
+
+        index = self.evaluate(expr.index)
+        index = cast(objects.IntObject, index)
+
+        return _list.value[index.value]

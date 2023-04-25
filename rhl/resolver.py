@@ -12,6 +12,7 @@ class Resolver:
         self._scope.push()
 
         self._expected_return_types = []
+        self._return_type_checked = []
 
     @singledispatchmethod
     def resolve_statement(self, stmt: ast.Statement) -> None:
@@ -43,9 +44,12 @@ class Resolver:
         for param_name, param_type in stmt.parameters:
             self._scope.declare(param_name.name, param_type)
         self._expected_return_types.insert(0, stmt.return_type)
+        self._return_type_checked.insert(0, False)
 
         self.resolve_statement(stmt.body)
 
+        if not self._return_type_checked.pop(0) and stmt.return_type != types.none_type:
+            raise Exception(f"function {stmt.name.name} must return a value")
         self._expected_return_types.pop(0)
         self._scope.pop()
 
@@ -73,6 +77,7 @@ class Resolver:
         return_type = self.resolve_expression(stmt.expr)
         if not self._expected_return_types[0].can_assign(return_type):
             raise Exception("Invalid return type")
+        self._return_type_checked[0] = True
 
     @resolve_statement.register
     def _(self, stmt: ast.ExpressionStatement) -> None:
@@ -190,3 +195,26 @@ class Resolver:
                 raise Exception(f"Invalid types")
 
         return func_type.return_type
+
+    @resolve_expression.register
+    def _(self, expr: ast.ListExpression) -> types.Type:
+        items_types = [self.resolve_expression(item) for item in expr.items]
+        if len(items_types) == 0:
+            return types.ListType.get_or_create(element_type=types.any_type)
+
+        elif all([item_type == items_types[0] for item_type in items_types]):
+            return types.ListType.get_or_create(items_types.pop())
+        else:
+            raise Exception("non homogenous list")
+
+    @resolve_expression.register
+    def _(self, expr: ast.GetItem) -> types.Type:
+        left = self.resolve_expression(expr.expr)
+        if not isinstance(left, types.ListType):
+            raise Exception("not a list")
+
+        index = self.resolve_expression(expr.index)
+        if index != types.int_type:
+            raise Exception("not a valid index")
+
+        return left.element_type

@@ -133,3 +133,14 @@ class FunctionCall(Expression):
     expr: Expression
     arguments: list[Expression]
     scope_distance: int = -1
+
+
+@dataclass
+class ListExpression(Expression):
+    items: list[Expression]
+
+
+@dataclass
+class GetItem(Expression):
+    expr: Expression
+    index: Expression

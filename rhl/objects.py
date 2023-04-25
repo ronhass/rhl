@@ -78,3 +78,16 @@ class FunctionObject(Object):
 
     def to_string(self):
         return f"func {self.name}"
+
+
+@dataclass
+class ListObject(Object):
+    value: list[Object]
+    element_type: types.Type
+
+    @property
+    def type(self):
+        return types.ListType.get_or_create(self.element_type)
+
+    def to_string(self):
+        return "[{}]".format(", ".join([elem.to_string() for elem in self.value]))
