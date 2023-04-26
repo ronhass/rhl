@@ -1,51 +1,58 @@
 import sys
 import logging
-from rhl.lexer import Lexer
-from rhl.parser import Parser
+import tree_sitter
 from rhl.interpreter import Interpreter
-from rhl.exceptions import RHLSyntaxError, RHLRuntimeError
+from rhl.exceptions import RHLResolverError, RHLRuntimeError
 from rhl.resolver import Resolver
+from rhl.node import Node, State
 import rhl.builtins
 
 def setup_logging():
     logging.basicConfig(format='[%(levelname)s] %(name)s - %(message)s', level=logging.WARNING)
 
 
+def get_ts_parser() -> tree_sitter.Parser:
+    tree_sitter.Language.build_library('build/rhl.so', ['tree-sitter-rhl'])
+    lang = tree_sitter.Language('build/rhl.so', 'rhl')
+    parser = tree_sitter.Parser()
+    parser.set_language(lang)
+    return parser
+
+
 def main():
     try:
         path = sys.argv[1]
     except IndexError:
-        print(f"Usage: {sys.argv[0]} <input_path>")
+        print(f"Usage: {sys.argv[0]} 'input_path'")
         return -1
 
-    with open(path) as f:
+    with open(path, "rb") as f:
         source = f.read()
         
     setup_logging()
+    logger = logging.getLogger(__name__)
 
-    lexer = Lexer(source)
-    try:
-        lexer.lex()
-    except RHLSyntaxError as e:
-        print(e)
-        return -2
-
-    parser = Parser(lexer.tokens)
-    try:
-        parser.parse()
-    except RHLSyntaxError as e:
-        print(e)
-        return -3
+    parser = get_ts_parser()
+    tree = parser.parse(source)
+    state = State()
+    root = Node.get_or_create(tree.root_node, state)
 
     resolver = Resolver()
-    resolver.resolve_statement(parser.root)
+    try:
+        resolver.visit(root)
+    except RHLResolverError as ex:
+        logger.error(ex)
+        state.has_errors = True
+
+    if state.has_errors:
+        return -2
 
     interpreter = Interpreter()
     try:
-        interpreter.execute(parser.root)
-    except RHLRuntimeError as e:
-        print(e)
-        return -4
+        interpreter.execute(root)
+    except RHLRuntimeError as ex:
+        logger.error(ex)
+        return -3
 
 
 if __name__ == "__main__":

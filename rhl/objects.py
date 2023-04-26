@@ -63,18 +63,15 @@ class NoneObject(Object):
 @dataclass
 class FunctionObject(Object):
     name: str
-    parameters: list[tuple[str, types.Type]]
-    return_type: types.Type
+    parameters: list[str]
+    func_type: types.FunctionType
 
     closure: "environment.Environment"
     execute: Callable[["environment.Environment"], None]
 
     @property
     def type(self):
-        return types.FunctionType.get_or_create([param_type for _, param_type in self.parameters], self.return_type)
-
-    def arity(self):
-        return len(self.parameters)
+        return self.func_type
 
     def to_string(self):
         return f"func {self.name}"

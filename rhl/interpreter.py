@@ -1,6 +1,6 @@
 from functools import singledispatchmethod
-from typing import cast
-from . import ast, objects, tokens, exceptions, types
+from typing import NoReturn, cast
+from . import objects, exceptions, types, node
 from .environment import Environment, GLOBAL_ENV
 
 
@@ -26,96 +26,85 @@ class Interpreter:
         # TODO: "" should be false or true?
         return True
 
-    @singledispatchmethod
-    def execute(self, stmt: ast.Statement) -> None:
-        raise NotImplementedError()
+    def _raise_exception(self, message: str, node: node.Node) -> NoReturn:
+        raise exceptions.RHLRuntimeError(message, node)
 
-    @execute.register
-    def _(self, stmt: ast.Program) -> None:
-        for _stmt in stmt.statements:
-            self.execute(_stmt)
+    def execute(self, node: node.Node) -> None:
+        execute_func = getattr(self, f'_execute_{node.type}', None)
+        if not execute_func:
+            self._raise_exception(f"Invalid statement node {node.type}", node)
+        execute_func(node)
 
-    @execute.register
-    def _(self, stmt: ast.VarDeclaration) -> None:
-        value = self.evaluate(stmt.expr)
-        self.environment.declare(stmt.name.name, value)
+    def _execute_source_file(self, node: node.Node) -> None:
+        for child in node.children:
+            self.execute(child)
 
-    @execute.register
-    def _(self, stmt: ast.FunDeclaration) -> None:
+    def _execute_function_declaration(self, node: node.Node) -> None:
         func = objects.FunctionObject(
-            name=stmt.name.name,
-            parameters=[(token.name, _type) for token, _type in stmt.parameters],
-            return_type=stmt.return_type,
+            name=node.get('name').text,
+            parameters=[
+                param.get('name').text for param in node.get_all('parameter')
+            ],
+            func_type=node.func_type,
             closure=Environment(self.environment),
-            execute=lambda env: Interpreter(env).execute(stmt.body),
+            execute=lambda env: Interpreter(env).execute(node.get('body')),
         )
-        self.environment.declare(stmt.name.name, func)
+        self.environment.declare(node.get('name').text, func)
 
-    @execute.register
-    def _(self, stmt: ast.Block) -> None:
-        for _stmt in stmt.statements:
+    def _execute_block(self, node: node.Node) -> None:
+        for _stmt in node.children[1:-1]:  # TODO: better block grammar?
             self.execute(_stmt)
 
-    @execute.register
-    def _(self, stmt: ast.IfStatement) -> None:
-        condition = self.evaluate(stmt.condition)
+    def _execute_if(self, node: node.Node) -> None:
+        condition = self.evaluate(node.get('condition'))
         if self._is_truthy(condition):
-            self.execute(stmt.body)
-        elif stmt.else_body is not None:
-            self.execute(stmt.else_body)
+            self.execute(node.get('body'))
+        elif (else_body := node.get_or_none('else_body')) is not None:
+            self.execute(else_body)
 
-    @execute.register
-    def _(self, stmt: ast.WhileStatement) -> None:
-        while self._is_truthy(self.evaluate(stmt.condition)):
-            self.execute(stmt.body)
+    def _execute_while(self, node: node.Node) -> None:
+        while self._is_truthy(self.evaluate(node.get('condition'))):
+            self.execute(node.get('body'))
 
-    @execute.register
-    def _(self, stmt: ast.ReturnStatement) -> None:
-        value = self.evaluate(stmt.expr)
+    def _execute_return(self, node: node.Node) -> None:
+        value = self.evaluate(node.get('expression'))
         raise self.Return(value)
 
-    @execute.register
-    def _(self, stmt: ast.ExpressionStatement) -> None:
-        self.evaluate(stmt.expr)
+    def _execute_expression_statement(self, node: node.Node) -> None:
+        self.evaluate(node.get('expression'))
 
-    @singledispatchmethod
-    def evaluate(self, expr: ast.Expression) -> objects.Object:
-        raise NotImplementedError()
+    def evaluate(self, node: node.Node) -> objects.Object:
+        evaluate_func = getattr(self, f'_evaluate_{node.type}', None)
+        if not evaluate_func:
+            self._raise_exception(f"Invalid expression node", node)
+        return evaluate_func(node)
 
-    @evaluate.register
-    def _(self, expr: ast.IntLiteralExpression) -> objects.IntObject:
-        return objects.IntObject(value=expr.value)
+    def _evaluate_integer(self, node: node.Node) -> objects.IntObject:
+        return objects.IntObject(value=int(node.text))
 
-    @evaluate.register
-    def _(self, expr: ast.RationalLiteralExpression) -> objects.RationalObject:
-        return objects.RationalObject(value=expr.value)
+    def _evaluate_rational(self, node: node.Node) -> objects.RationalObject:
+        return objects.RationalObject(value=float(node.text))
 
-    @evaluate.register
-    def _(self, expr: ast.StringLiteralExpression) -> objects.StringObject:
-        return objects.StringObject(value=expr.value)
+    def _evaluate_string(self, node: node.Node) -> objects.StringObject:
+        return objects.StringObject(value=node.text[1:-1])
 
-    @evaluate.register
-    def _(self, expr: ast.BooleanLiteralExpression) -> objects.BooleanObject:
-        return objects.BooleanObject(value=expr.value)
+    def _evaluate_boolean(self, node: node.Node) -> objects.BooleanObject:
+        return objects.BooleanObject(value=bool(node.text))
 
-    @evaluate.register
-    def _(self, expr: ast.NoneLiteralExpression) -> objects.NoneObject:
+    def _evaluate_none(self, _: node.Node) -> objects.NoneObject:
         return objects.NoneObject()
 
-    @evaluate.register
-    def _(self, expr: ast.VariableExpression) -> objects.Object:
-        return self.environment.get_at(expr.identifier.name, expr.scope_distance)
+    def _evaluate_identifier(self, node: node.Node) -> objects.Object:
+        return self.environment.get_at(node.text, node.scope_distance)
 
-    @evaluate.register
-    def _(self, expr: ast.FunctionCall) -> objects.Object:
-        func = self.evaluate(expr.expr)
+    def _evaluate_call(self, node: node.Node) -> objects.Object:
+        func = self.evaluate(node.get('function'))
         func = cast(objects.FunctionObject, func)
 
         env = Environment(func.closure)
         env.push()
-        for param, arg in zip(func.parameters, expr.arguments):
-            param_name, _ = param
-            env.declare(param_name, self.evaluate(arg))
+        for param, arg in zip(func.parameters, node.get_all('argument')):
+            env.declare(param, self.evaluate(arg))
 
         try:
             func.execute(env)
@@ -124,51 +113,55 @@ class Interpreter:
 
         return objects.NoneObject()
 
-    @evaluate.register
-    def _(self, expr: ast.VariableAssignment) -> objects.Object:
-        value = self.evaluate(expr.expr)
-        self.environment.set_at(expr.name.name, expr.scope_distance, value)
+    def _evaluate_variable_declaration(self, node: node.Node) -> objects.Object:
+        value = self.evaluate(node.get('value'))
+        self.environment.declare(node.get('name').text, value)
         return value
 
-    @evaluate.register
-    def _(self, expr: ast.GroupExpression) -> objects.Object:
-        return self.evaluate(expr.expr)
+    def _evaluate_variable_assignment(self, node: node.Node) -> objects.Object:
+        value = self.evaluate(node.get('value'))
+        self.environment.set_at(node.get('name').text, node.scope_distance, value)
+        return value
 
-    @evaluate.register
-    def _(self, expr: ast.UnaryExpression) -> objects.Object:
-        right = self.evaluate(expr.right)
+    def _evaluate_group(self, node: node.Node) -> objects.Object:
+        return self.evaluate(node.get('expression'))
 
-        match expr.operator:
-            case tokens.BangToken():
+    def _evaluate_unary_expression(self, node: node.Node) -> objects.Object:
+        right = self.evaluate(node.get('right'))
+        operator = node.get('operator').text
+
+        match operator:
+            case '!':
                 if isinstance(right, objects.BooleanObject):
                     return objects.BooleanObject(value=not right.value)
 
-            case tokens.MinusToken():
+            case '-':
                 if isinstance(right, objects.IntObject):
                     return objects.IntObject(value=-right.value)
                 if isinstance(right, objects.RationalObject):
                     return objects.RationalObject(value=-right.value)
 
             case _:
-                raise Exception("invalid unary operator?")
+                raise Exception("invalid unary operator")
 
-        raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {right.type}", expr.operator.line + 1, expr.operator.column)
+        self._raise_exception(f"cannot apply operator {operator} on {right.type}", node)
             
-    @evaluate.register
-    def _(self, expr: ast.BinaryExpression) -> objects.Object:
-        match expr.operator:
-            case tokens.AndToken():
-                if not self._is_truthy(left := self.evaluate(expr.left)):
-                    return left
-                return self.evaluate(expr.right)
+    def _evaluate_binary_expression(self, node: node.Node) -> objects.Object:
+        operator = node.get('operator').text
 
-            case tokens.OrToken():
-                if self._is_truthy(left := self.evaluate(expr.left)):
+        match operator:
+            case 'and':
+                if not self._is_truthy(left := self.evaluate(node.get('left'))):
                     return left
-                return self.evaluate(expr.right)
+                return self.evaluate(node.get('right'))
 
-        left = self.evaluate(expr.left)
-        right = self.evaluate(expr.right)
+            case 'or':
+                if self._is_truthy(left := self.evaluate(node.get('left'))):
+                    return left
+                return self.evaluate(node.get('right'))
+
+        left = self.evaluate(node.get('left'))
+        right = self.evaluate(node.get('right'))
 
         # convert int to rational if necessary
         if isinstance(left, objects.IntObject) and isinstance(right, objects.RationalObject):
@@ -179,30 +172,30 @@ class Interpreter:
         def _check_types(class_or_tuple) -> bool:
             return isinstance(left, class_or_tuple) and isinstance(right, class_or_tuple)
 
-        match expr.operator:
-            case tokens.EqualEqualToken():
+        match operator:
+            case '==':
                 return objects.BooleanObject(value=left.value == right.value)
 
-            case tokens.BangEqualToken():
+            case '!=':
                 return objects.BooleanObject(value=left.value != right.value)
 
-            case tokens.GreaterToken():
+            case '>':
                 if _check_types((objects.IntObject, objects.RationalObject)):
                     return objects.BooleanObject(value=left.value > right.value)
 
-            case tokens.GreaterEqualToken():
+            case '>=':
                 if _check_types((objects.IntObject, objects.RationalObject)):
                     return objects.BooleanObject(value=left.value >= right.value)
 
-            case tokens.LessToken():
+            case '<':
                 if _check_types((objects.IntObject, objects.RationalObject)):
                     return objects.BooleanObject(value=left.value < right.value)
 
-            case tokens.LessEqualToken():
+            case '<=':
                 if _check_types((objects.IntObject, objects.RationalObject)):
                     return objects.BooleanObject(value=left.value <= right.value)
 
-            case tokens.PlusToken():
+            case '+':
                 if _check_types(objects.IntObject):
                     return objects.IntObject(value=left.value + right.value)
                 if _check_types(objects.RationalObject):
@@ -210,46 +203,45 @@ class Interpreter:
                 if _check_types(objects.StringObject):
                     return objects.StringObject(value=left.value + right.value)
 
-            case tokens.MinusToken():
+            case '-':
                 if _check_types(objects.IntObject):
                     return objects.IntObject(value=left.value - right.value)
                 if _check_types(objects.RationalObject):
                     return objects.RationalObject(value=left.value - right.value)
 
-            case tokens.StarToken():
+            case '*':
                 if _check_types(objects.IntObject):
                     return objects.IntObject(value=left.value * right.value)
                 if _check_types(objects.RationalObject):
                     return objects.RationalObject(value=left.value * right.value)
 
-            case tokens.SlashToken():
+            case '/':
                 try:
                     if _check_types(objects.IntObject):
                         return objects.IntObject(value=left.value // right.value)
                     if _check_types(objects.RationalObject):
                         return objects.RationalObject(value=left.value / right.value)
                 except ZeroDivisionError:
-                    raise exceptions.RHLDivisionByZeroError(expr.operator.line + 1, expr.operator.column)
+                    raise exceptions.RHLDivisionByZeroError(node)
 
             case _:
-                raise Exception(f"Invalid binary operator {expr.operator}")
+                raise Exception(f"Invalid binary operator {operator}")
 
-        raise exceptions.RHLRuntimeError(f"cannot apply operator {expr.operator} on {left.type} and {right.type}", expr.operator.line + 1, expr.operator.column)
+        self._raise_exception(f"cannot apply operator {operator} on {left.type} and {right.type}", node)
 
-    @evaluate.register
-    def _(self, expr: ast.ListExpression) -> objects.Object:
-        items = [self.evaluate(item) for item in expr.items]
+    def _evaluate_list(self, node: node.Node) -> objects.Object:
+        items = [self.evaluate(item) for item in node.get_all('value')]
+        # TODO: determine the type in the resolver
         if len(items) == 0:
             return objects.ListObject(element_type=types.any_type, value=[])
         return objects.ListObject(element_type=items[0].type, value=items)
 
 
-    @evaluate.register
-    def _(self, expr: ast.GetItem) -> objects.Object:
-        _list = self.evaluate(expr.expr)
-        _list = cast(objects.ListObject, _list)
+    def _evaluate_get_item(self, node: node.Node) -> objects.Object:
+        left = self.evaluate(node.get('left'))
+        left = cast(objects.ListObject, left)
 
-        index = self.evaluate(expr.index)
+        index = self.evaluate(node.get('index'))
         index = cast(objects.IntObject, index)
 
-        return _list.value[index.value]
+        return left.value[index.value]

@@ -1,24 +1,30 @@
-class ErrorAtLocation(Exception):
-    def __init__(self, message: str, lineno: int, column: int):
-        super().__init__(message, lineno, column)
+from . import node
+
+class ErrorWithNode(Exception):
+    def __init__(self, message: str, node: node.Node):
+        super().__init__(message, node)
         self.message = message
-        self.lineno = lineno
-        self.column = column
+        self.node = node
 
     def __str__(self):
-        return f"(line {self.lineno}, column {self.column}): {self.message}"
+        return f"{self.node.start_point} - {self.node.end_point}: {self.message}"
 
 
-class RHLSyntaxError(ErrorAtLocation):
+class RHLSyntaxError(ErrorWithNode):
     def __str__(self):
         return f"Syntax error {super().__str__()}"
 
 
-class RHLRuntimeError(ErrorAtLocation):
+class RHLResolverError(ErrorWithNode):
+    def __str__(self):
+        return f"Resolver error {super().__str__()}"
+
+
+class RHLRuntimeError(ErrorWithNode):
     def __str__(self):
         return f"Runtime error {super().__str__()}"
 
 
 class RHLDivisionByZeroError(RHLRuntimeError):
-    def __init__(self, lineno: int, column: int):
-        super().__init__("division by zero encountered", lineno, column)
+    def __init__(self, node: node.Node):
+        super().__init__("division by zero encountered", node)

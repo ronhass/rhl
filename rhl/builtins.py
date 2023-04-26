@@ -19,15 +19,22 @@ def register_builtin(name: Optional[str] = None, parameters: Optional[list[tuple
             _return_type = annotated_return.type
         if _parameters is None:
             _parameters = [(param_name, param_type.type) for param_name, param_type in annotations.items()]
+        _params_names = [param_name for param_name, _ in _parameters]
+        _params_types = [param_type for _, param_type in _parameters]
 
         def _func(env: environment.Environment) -> None:
             kwargs = {arg: env.get_at(arg, 0) for arg in annotations.keys()}
             raise interpreter.Interpreter.Return(func(**kwargs))
 
+        func_type = types.FunctionType.get_or_create(
+            params_types=_params_types,
+            return_type=_return_type
+        )
+
         func_obj = objects.FunctionObject(
             name=_name,
-            parameters=_parameters,
-            return_type=_return_type,
+            parameters=_params_names,
+            func_type=func_type,
             closure=environment.GLOBAL_ENV,
             execute=_func
         )
@@ -66,3 +73,12 @@ def __rhl_range(obj: objects.IntObject) -> objects.ListObject:
 )
 def __rhl_len(obj: objects.ListObject) -> objects.IntObject:
     return objects.IntObject(value=len(obj.value))
+
+
+@register_builtin(
+    parameters=[("l", types.ListType.get_or_create(element_type=types.int_type)),
+                ("v", types.int_type)]
+)
+def __rhl_append(l: objects.ListObject, v: objects.IntObject) -> objects.NoneObject:
+    l.value.append(v)
+    return objects.NoneObject()
