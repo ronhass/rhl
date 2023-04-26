@@ -41,7 +41,6 @@ class Type:
         return self.is_ancestor_of(other)
 
 
-
 any_type = Type("any", None)
 ratio_type = Type("ratio", any_type)
 int_type = Type("int", ratio_type)
@@ -70,7 +69,9 @@ class FunctionType(Type):
 
     @classmethod
     def get_or_create(cls, params_types: list[Type], return_type: Type):
-        name = "func[[{}],{}]".format(",".join([_type.name for _type in params_types]), return_type.name)
+        name = "func[[{}],{}]".format(
+            ",".join([_type.name for _type in params_types]), return_type.name
+        )
         if name not in cls._cache:
             logger.debug(f"Creating new function type: '{name}'")
             cls._cache[name] = cls(name, any_type, params_types, return_type)
@@ -96,7 +97,9 @@ class FunctionType(Type):
         if len(self.params_types) != len(other.params_types):
             return False
 
-        for self_param_type, other_param_type in zip(self.params_types, other.params_types):
+        for self_param_type, other_param_type in zip(
+            self.params_types, other.params_types
+        ):
             if not other_param_type.is_ancestor_of(self_param_type):
                 return False
 

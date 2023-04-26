@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable, ClassVar 
+from typing import Callable, ClassVar
 from dataclasses import dataclass
 
 from . import types
@@ -8,7 +8,7 @@ from . import types
 @dataclass
 class Object(ABC):
     type: ClassVar[types.Type] = types.any_type
-        
+
     @abstractmethod
     def to_string(self) -> str:
         pass

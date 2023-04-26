@@ -1,9 +1,11 @@
-from . import objects 
+from . import objects
 
 
 class Environment:
     def __init__(self, env: "Environment | None" = None):
-        self._stack: list[dict[str, objects.Object]] = env._stack.copy() if env else [{}]
+        self._stack: list[dict[str, objects.Object]] = (
+            env._stack.copy() if env else [{}]
+        )
 
     def push(self) -> None:
         self._stack.insert(0, {})

@@ -7,13 +7,16 @@ from rhl.resolver import Resolver
 from rhl.node import Node, State
 import rhl.builtins
 
+
 def setup_logging():
-    logging.basicConfig(format='[%(levelname)s] %(name)s - %(message)s', level=logging.WARNING)
+    logging.basicConfig(
+        format="[%(levelname)s] %(name)s - %(message)s", level=logging.WARNING
+    )
 
 
 def get_ts_parser() -> tree_sitter.Parser:
-    tree_sitter.Language.build_library('build/rhl.so', ['tree-sitter-rhl'])
-    lang = tree_sitter.Language('build/rhl.so', 'rhl')
+    tree_sitter.Language.build_library("build/rhl.so", ["tree-sitter-rhl"])
+    lang = tree_sitter.Language("build/rhl.so", "rhl")
     parser = tree_sitter.Parser()
     parser.set_language(lang)
     return parser
@@ -28,7 +31,7 @@ def main():
 
     with open(path, "rb") as f:
         source = f.read()
-        
+
     setup_logging()
     logger = logging.getLogger(__name__)
 

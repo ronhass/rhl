@@ -39,13 +39,12 @@ class Node:
         return str(self._inner)
 
     def _report_errors(self):
-        errors = [
-            child for child in self._inner.children
-            if child.type == "ERROR"
-        ]
+        errors = [child for child in self._inner.children if child.type == "ERROR"]
         for error in errors:
             self._state.has_errors = True
-            logger.error(f"Syntax error {error.start_point} - {error.end_point}: text {error.text}")
+            logger.error(
+                f"Syntax error {error.start_point} - {error.end_point}: text {error.text!r}"
+            )
 
     @property
     def children(self) -> "list[Node]":
@@ -62,7 +61,10 @@ class Node:
         return None
 
     def get_all(self, field: str) -> "list[Node]":
-        return [Node.get_or_create(c, self._state) for c in self._inner.children_by_field_name(field)]
+        return [
+            Node.get_or_create(c, self._state)
+            for c in self._inner.children_by_field_name(field)
+        ]
 
     @property
     def text(self) -> str:

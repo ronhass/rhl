@@ -1,13 +1,14 @@
 from . import types
 
+
 class Scope:
-    def __init__(self):
+    def __init__(self) -> None:
         self._stack: list[dict[str, types.Type]] = [{}]
 
-    def push(self):
+    def push(self) -> None:
         self._stack.insert(0, {})
-    
-    def pop(self):
+
+    def pop(self) -> None:
         self._stack.pop(0)
 
     def get(self, name: str) -> tuple[types.Type, int] | None:

@@ -1,5 +1,6 @@
 from . import node
 
+
 class ErrorWithNode(Exception):
     def __init__(self, message: str, node: node.Node):
         super().__init__(message, node)
