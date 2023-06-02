@@ -11,8 +11,8 @@ class Type:
     name: str
     parent: "Type | None"
 
-    def __eq__(self, other: "Type") -> bool:
-        return self.name == other.name
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Type) and self.name == other.name
 
     def __repr__(self) -> str:
         return self.name
