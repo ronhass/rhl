@@ -47,6 +47,7 @@ int_type = Type("int", ratio_type)
 str_type = Type("str", any_type)
 bool_type = Type("bool", any_type)
 none_type = Type("none", any_type)
+qubit_type = Type("qubit", any_type)
 
 basic_types = [
     any_type,
@@ -55,6 +56,7 @@ basic_types = [
     str_type,
     bool_type,
     none_type,
+    qubit_type,
 ]
 
 basic_types_names = {_type.name: _type for _type in basic_types}

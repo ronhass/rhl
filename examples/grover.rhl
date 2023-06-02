@@ -1,0 +1,63 @@
+fun measure_to_int(q: list[qubit]) -> int {
+    i := len(q) - 1;
+    res := 0;
+
+    while i >= 0 {
+        res = res * 2 + measure(q[i]);
+        i = i - 1;
+    }
+
+    return res;
+}
+
+fun hall(q: list[qubit]) {
+    i := 0;
+    while i < len(q) {
+        h(q[i]);
+        i = i + 1;
+    }
+}
+
+fun xall(q: list[qubit]) {
+    i := 0;
+    while i < len(q) {
+        x(q[i]);
+        i = i + 1;
+    }
+}
+
+fun grover_diffuser(q: list[qubit]) {
+    hall(q);
+    xall(q);
+    mcz(q);
+    xall(q);
+    hall(q);
+}
+
+fun grover(num_qubits: int, reps: int, oracle: func[[list[qubit]], none]) -> int {
+    q := qalloc(num_qubits);
+    hall(q);
+    
+    i := 0;
+    while i < reps {
+        oracle(q);
+        grover_diffuser(q);
+        i = i + 1;
+    }
+
+    result := measure_to_int(q);
+    qfree(q);
+    return result;
+}
+
+fun flip_on_3(q: list[qubit]) {
+    x(q[2]);
+    mcz(q);
+    x(q[2]);
+}
+
+i := 0;
+while i < 1000 {
+    print(grover(3, 2, flip_on_3));
+    i = i + 1;
+}

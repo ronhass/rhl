@@ -61,6 +61,15 @@ class NoneObject(Object):
 
 
 @dataclass
+class QubitObject(Object):
+    value: int
+    type: ClassVar[types.Type] = types.qubit_type
+
+    def to_string(self):
+        return f"Qubit #{self.value}"
+
+
+@dataclass
 class FunctionObject(Object):
     name: str
     parameters: list[str]

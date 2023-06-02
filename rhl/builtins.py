@@ -1,5 +1,5 @@
 from typing import Callable, Optional
-from . import environment, scope, interpreter, objects, types
+from . import environment, scope, interpreter, objects, types, qsim
 
 
 def register_builtin(
@@ -18,6 +18,8 @@ def register_builtin(
                 _name = _name[len("__rhl_") :]
 
         annotations = func.__annotations__.copy()
+        qsim = annotations.pop("qsim", None)
+
         annotated_return = annotations.pop("return")
         if _return_type is None:
             _return_type = annotated_return.type
@@ -31,6 +33,8 @@ def register_builtin(
 
         def _func(env: environment.Environment) -> None:
             kwargs = {arg: env.get_at(arg, 0) for arg in annotations.keys()}
+            if qsim:
+                kwargs["qsim"] = env.get_at("qsim", 1)
             raise interpreter.Interpreter.Return(func(**kwargs))
 
         func_type = types.FunctionType.get_or_create(
@@ -92,4 +96,58 @@ def __rhl_len(obj: objects.ListObject) -> objects.IntObject:
 )
 def __rhl_append(l: objects.ListObject, v: objects.IntObject) -> objects.NoneObject:
     l.value.append(v)
+    return objects.NoneObject()
+
+
+@register_builtin(
+    return_type=types.ListType.get_or_create(element_type=types.qubit_type),
+)
+def __rhl_qalloc(qsim: qsim.QSimulator, obj: objects.IntObject) -> objects.ListObject:
+    qubits = qsim.qalloc(obj.value)
+    return objects.ListObject(
+        value=[objects.QubitObject(value=v) for v in qubits],
+        element_type=types.qubit_type,
+    )
+
+
+@register_builtin(
+    parameters=[
+        ("qubits", types.ListType.get_or_create(element_type=types.qubit_type)),
+    ]
+)
+def __rhl_qfree(qsim: qsim.QSimulator, qubits: objects.ListObject) -> objects.NoneObject:
+    qsim.qfree([obj.value for obj in qubits.value])
+    return objects.NoneObject()
+
+
+@register_builtin()
+def __rhl_measure(qsim: qsim.QSimulator, qubit: objects.QubitObject) -> objects.IntObject:
+    return objects.IntObject(value=qsim.measure(qubit.value))
+
+
+@register_builtin()
+def __rhl_x(qsim: qsim.QSimulator, qubit: objects.QubitObject) -> objects.NoneObject:
+    qsim.x(qubit.value)
+    return objects.NoneObject()
+
+
+@register_builtin()
+def __rhl_h(qsim: qsim.QSimulator, qubit: objects.QubitObject) -> objects.NoneObject:
+    qsim.h(qubit.value)
+    return objects.NoneObject()
+
+
+@register_builtin()
+def __rhl_cx(qsim: qsim.QSimulator, control: objects.QubitObject, target: objects.QubitObject) -> objects.NoneObject:
+    qsim.cx(control.value, target.value)
+    return objects.NoneObject()
+
+
+@register_builtin(
+    parameters=[
+        ("qubits", types.ListType.get_or_create(element_type=types.qubit_type)),
+    ]
+)
+def __rhl_mcz(qsim: qsim.QSimulator, qubits: objects.ListObject) -> objects.NoneObject:
+    qsim.mcz([obj.value for obj in qubits.value])
     return objects.NoneObject()

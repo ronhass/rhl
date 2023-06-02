@@ -1,4 +1,5 @@
 from . import objects
+from . import qsim
 
 
 class Environment:
@@ -33,3 +34,4 @@ class Environment:
 
 
 GLOBAL_ENV = Environment()
+GLOBAL_ENV.declare("qsim", qsim.QSimulator())

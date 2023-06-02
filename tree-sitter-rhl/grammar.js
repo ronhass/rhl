@@ -182,6 +182,7 @@ module.exports = grammar({
             'bool',
             'str',
             'any',
+            'qubit',
         ),
 
         func_type: $ => seq(
